@@ -1,0 +1,72 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+public class WeatherIconUI : MonoBehaviour
+{
+    [Header("UI 引用")]
+    public Image weatherIconImage;        // 天气图标 Image
+    public TMP_Text weatherLabelText;     // 天气名称 Text
+
+    [Header("图标素材（拖入你的图片）")]
+    public Sprite sunnyIcon;              // 晴天图标
+    public Sprite rainyIcon;              // 下雨图标
+    public Sprite snowyIcon;              // 下雪图标
+
+    [Header("颜色设置")]
+    public Color sunnyColor = Color.yellow;
+    public Color rainyColor = new Color(0.3f, 0.5f, 0.8f);
+    public Color snowyColor = Color.white;
+
+    void Start()
+    {
+        // 初始显示晴天
+        UpdateWeatherIcon(WeatherState.Sunny);
+    }
+
+    void OnEnable()
+    {
+        // 订阅天气变化事件
+        if (WeatherSystem.Instance != null)
+        {
+            // 每次切换天气时更新图标
+            UpdateWeatherIcon(WeatherSystem.Instance.GetCurrentWeather());
+        }
+    }
+
+    void Update()
+    {
+        // 每帧检测天气是否变化（实时更新）
+        if (WeatherSystem.Instance != null)
+        {
+            UpdateWeatherIcon(WeatherSystem.Instance.GetCurrentWeather());
+        }
+    }
+
+    // ===== 更新天气图标 =====
+    void UpdateWeatherIcon(WeatherState weather)
+    {
+        if (weatherIconImage == null) return;
+
+        switch (weather)
+        {
+            case WeatherState.Sunny:
+                if (sunnyIcon != null) weatherIconImage.sprite = sunnyIcon;
+                weatherIconImage.color = sunnyColor;
+                if (weatherLabelText != null) weatherLabelText.text = "Sun";
+                break;
+
+            case WeatherState.Rainy:
+                if (rainyIcon != null) weatherIconImage.sprite = rainyIcon;
+                weatherIconImage.color = rainyColor;
+                if (weatherLabelText != null) weatherLabelText.text = "Rain";
+                break;
+
+            case WeatherState.Snowy:
+                if (snowyIcon != null) weatherIconImage.sprite = snowyIcon;
+                weatherIconImage.color = snowyColor;
+                if (weatherLabelText != null) weatherLabelText.text = "Snow";
+                break;
+        }
+    }
+}
