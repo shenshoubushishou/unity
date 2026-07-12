@@ -1,0 +1,175 @@
+using UnityEngine;
+using TMPro;
+using System.Collections;
+
+public class ScoreManager : MonoBehaviour
+{
+    public static ScoreManager Instance;
+
+    [Header("得分设置")]
+    public int currentScore = 0;
+    public int totalCheckpoints = 5;
+
+    [Header("UI 引用")]
+    public TMP_Text scoreText;
+    public GameObject scorePopupPrefab;
+    public Transform popupParent;
+
+    [Header("动画设置")]
+    public float popupDuration = 0.5f;
+    public float popupScale = 1.3f;
+
+    private void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        UpdateScoreUI();
+    }
+
+    public void AddScore(int amount = 1)
+    {
+        currentScore += amount;
+        UpdateScoreUI();
+
+        ShowScorePopup(amount);
+        StartCoroutine(ScorePopupAnimation());
+
+        Debug.Log($"得分 +{amount}，当前总分：{currentScore}/{totalCheckpoints}");
+
+        if (currentScore >= totalCheckpoints)
+        {
+            OnAllCheckpointsCompleted();
+        }
+    }
+
+    // 在 ScoreManager.cs 中添加这个方法
+    public void UpdateUI()
+    {
+        if (scoreText != null)
+        {
+            scoreText.text = $"得分：{currentScore} / {totalCheckpoints}";
+        }
+    }
+    void ShowScorePopup(int amount)
+    {
+        if (scorePopupPrefab == null)
+        {
+            Debug.LogWarning("scorePopupPrefab 为空！");
+            return;
+        }
+
+        Transform parent = popupParent != null ? popupParent : transform;
+
+        GameObject popup = Instantiate(scorePopupPrefab, parent);
+
+        TMP_Text text = popup.GetComponent<TMP_Text>();
+        if (text != null)
+        {
+            text.text = $"+{amount}";
+            text.color = new Color(1f, 0.84f, 0f, 1f);
+            text.fontSize = 48;
+            text.alignment = TextAlignmentOptions.Center;
+        }
+
+        RectTransform rect = popup.GetComponent<RectTransform>();
+        if (rect != null)
+        {
+            if (scoreText != null)
+            {
+                RectTransform scoreRect = scoreText.GetComponent<RectTransform>();
+                if (scoreRect != null)
+                {
+                    rect.anchoredPosition = scoreRect.anchoredPosition + new Vector2(80, 30);
+                }
+                else
+                {
+                    rect.anchoredPosition = new Vector2(0, 100);
+                }
+            }
+            else
+            {
+                rect.anchoredPosition = new Vector2(0, 100);
+            }
+        }
+
+        popup.SetActive(true);
+
+        Debug.Log($"显示得分弹出：+{amount}");
+    }
+
+    void UpdateScoreUI()
+    {
+        if (scoreText != null)
+        {
+            scoreText.text = $"得分：{currentScore} / {totalCheckpoints}";
+        }
+    }
+
+    IEnumerator ScorePopupAnimation()
+    {
+        if (scoreText == null) yield break;
+
+        Vector3 originalScale = scoreText.transform.localScale;
+        Vector3 targetScale = originalScale * popupScale;
+
+        float elapsed = 0f;
+        while (elapsed < popupDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / popupDuration;
+            scoreText.transform.localScale = Vector3.Lerp(originalScale, targetScale, t);
+            yield return null;
+        }
+
+        elapsed = 0f;
+        while (elapsed < popupDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / popupDuration;
+            scoreText.transform.localScale = Vector3.Lerp(targetScale, originalScale, t);
+            yield return null;
+        }
+
+        scoreText.transform.localScale = originalScale;
+    }
+
+    void OnAllCheckpointsCompleted()
+    {
+        Debug.Log("全部完成！");
+
+        if (scoreText != null)
+        {
+            scoreText.text = $"全部完成！得分：{currentScore}";
+            scoreText.color = Color.yellow;
+        }
+    }
+
+    public void ResetScore()
+    {
+        currentScore = 0;
+        UpdateScoreUI();
+
+        if (scoreText != null)
+        {
+            scoreText.color = Color.white;
+        }
+
+        Debug.Log("得分已重置");
+    }
+
+    public int GetScore()
+    {
+        return currentScore;
+    }
+
+    public float GetCompletionPercent()
+    {
+        return (float)currentScore / totalCheckpoints;
+    }
+}
