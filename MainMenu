@@ -1,0 +1,150 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+using static System.Net.Mime.MediaTypeNames;
+
+public class MainMenu : MonoBehaviour
+{
+    [Header("游戏对象引用")]
+    public GameObject player;
+    public GameObject uiCanvas;
+    public GameObject hudPanel;
+    public GameObject taskPanel;
+    public GameObject inventoryPanel;
+    public GameObject miniMap;
+    public GameObject teleportButton;  // 新增
+
+    [Header("按钮")]
+    public GameObject continueButton;
+    public Button musicButton;
+    public TMP_Text musicButtonText;
+
+    void Start()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        // ===== 隐藏所有游戏 UI =====
+        if (uiCanvas != null)
+            uiCanvas.SetActive(false);
+
+        if (player != null)
+            player.SetActive(false);
+
+        if (hudPanel != null)
+            hudPanel.SetActive(false);
+
+        if (taskPanel != null)
+            taskPanel.SetActive(false);
+
+        if (inventoryPanel != null)
+            inventoryPanel.SetActive(false);
+
+        if (miniMap != null)
+            miniMap.SetActive(false);
+
+        // ===== 隐藏传送按钮 =====
+        if (teleportButton != null)
+            teleportButton.SetActive(false);
+
+        // ===== 继续按钮 =====
+        if (continueButton != null)
+        {
+            bool hasSave = SaveManager.Instance != null && SaveManager.Instance.HasSave();
+            continueButton.SetActive(hasSave);
+            Debug.Log($"存档状态：{(hasSave ? "有存档" : "无存档")}");
+        }
+
+        // ===== 音乐按钮 =====
+        if (musicButton != null)
+        {
+            musicButton.onClick.AddListener(ToggleMusic);
+            UpdateMusicButtonText();
+        }
+
+        Debug.Log("主菜单已启动");
+    }
+
+    public void ToggleMusic()
+    {
+        if (BackgroundMusicController.Instance != null)
+        {
+            BackgroundMusicController.Instance.ToggleMusic();
+            UpdateMusicButtonText();
+        }
+    }
+
+    void UpdateMusicButtonText()
+    {
+        if (musicButtonText == null) return;
+
+        if (BackgroundMusicController.Instance != null)
+        {
+            if (BackgroundMusicController.Instance.IsMuted())
+            {
+                musicButtonText.text = "🔇 音乐关";
+            }
+            else
+            {
+                musicButtonText.text = "🔊 音乐开";
+            }
+        }
+    }
+
+    public void StartGame()
+    {
+        Debug.Log("开始新游戏！");
+        ContinueGame();
+    }
+
+    public void ContinueGame()
+    {
+        Debug.Log("继续游戏！");
+
+        Time.timeScale = 1f;
+
+        if (uiCanvas != null)
+            uiCanvas.SetActive(true);
+
+        if (player != null)
+            player.SetActive(true);
+
+        if (hudPanel != null)
+            hudPanel.SetActive(true);
+
+        if (taskPanel != null)
+            taskPanel.SetActive(true);
+
+        if (inventoryPanel != null)
+            inventoryPanel.SetActive(false);
+
+        if (miniMap != null)
+            miniMap.SetActive(true);
+
+        // ===== 显示传送按钮 =====
+        if (teleportButton != null)
+            teleportButton.SetActive(true);
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        if (SaveManager.Instance != null && SaveManager.Instance.HasSave())
+        {
+            SaveManager.Instance.LoadGame();
+            Debug.Log("📂 已读取存档");
+        }
+
+        Destroy(gameObject);
+    }
+
+    public void ExitGame()
+    {
+        Debug.Log("退出游戏！");
+
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
+    }
+}
