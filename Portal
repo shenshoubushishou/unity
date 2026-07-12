@@ -1,0 +1,95 @@
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class Portal : MonoBehaviour
+{
+    [Header("传送设置")]
+    public string targetSceneName = "Scene2";
+    public string targetPortalID = "PortalB";
+    public string portalID = "PortalA";
+
+    [Header("传送效果")]
+    public float teleportDelay = 0.5f;
+
+    [Header("UI 提示")]
+    public GameObject interactHint;
+
+    private Transform player;
+    private bool isPlayerNear = false;
+
+    void Start()
+    {
+        if (interactHint != null)
+            interactHint.SetActive(false);
+        Debug.Log("✅ Portal Start 执行了");
+    }
+
+    void Update()
+    {
+        if (player == null)
+        {
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+                player = playerObj.transform;
+        }
+
+        // ===== 调试：检测 E 键 =====
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            Debug.Log($"⌨️ E 键被按下！isPlayerNear：{isPlayerNear}");
+        }
+
+        if (interactHint != null)
+            interactHint.SetActive(isPlayerNear);
+
+        if (isPlayerNear && Input.GetKeyDown(KeyCode.E))
+        {
+            Debug.Log("🌀 按 E 传送！");
+            TeleportPlayer();
+        }
+    }
+
+    void OnTriggerEnter(Collider other)
+    {
+        Debug.Log($"🔔 触发检测：{other.name}，Tag：{other.tag}");
+
+        if (other.CompareTag("Player"))
+        {
+            isPlayerNear = true;
+            Debug.Log("✅ 玩家进入传送门！isPlayerNear = true");
+        }
+    }
+
+    void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            isPlayerNear = false;
+            Debug.Log("❌ 玩家离开传送门！isPlayerNear = false");
+        }
+    }
+
+    void TeleportPlayer()
+    {
+        if (player == null) return;
+
+        Debug.Log($"🌀 传送到：{targetSceneName}，目标传送门：{targetPortalID}");
+
+        if (PortalManager.Instance != null)
+        {
+            PortalManager.Instance.SetTargetPortal(targetPortalID);
+        }
+        else
+        {
+            Debug.LogError("❌ PortalManager 不存在！");
+        }
+
+        SceneManager.LoadScene(targetSceneName);
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(transform.position, 3f);
+    }
+}
