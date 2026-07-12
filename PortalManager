@@ -1,0 +1,64 @@
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class PortalManager : MonoBehaviour
+{
+    public static PortalManager Instance;
+
+    private string targetPortalID = "";
+
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+            Debug.Log("✅ PortalManager 已初始化");
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    void Start()
+    {
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    public void SetTargetPortal(string portalID)
+    {
+        targetPortalID = portalID;
+        Debug.Log($"🎯 目标传送门：{portalID}");
+    }
+
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (string.IsNullOrEmpty(targetPortalID)) return;
+
+        Debug.Log($"🔍 查找目标传送门：{targetPortalID}");
+
+        Portal[] portals = FindObjectsOfType<Portal>();
+        foreach (Portal p in portals)
+        {
+            if (p.portalID == targetPortalID)
+            {
+                GameObject player = GameObject.FindGameObjectWithTag("Player");
+                if (player != null)
+                {
+                    Vector3 targetPos = p.transform.position + new Vector3(0, 1, 0);
+                    player.transform.position = targetPos;
+                    Debug.Log($"✅ 玩家传送到：{targetPos}");
+                }
+                break;
+            }
+        }
+
+        targetPortalID = "";
+    }
+
+    void OnDestroy()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+}
