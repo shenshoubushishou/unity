@@ -1,0 +1,189 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+public class WeatherBuffSystem : MonoBehaviour
+{
+    public static WeatherBuffSystem Instance;
+
+    [Header("Buff 设置")]
+    public float buffIncreaseRate = 5f;
+    public float buffDecreaseRate = 10f;
+    public float maxBuff = 100f;
+    public float currentBuff = 0f;
+
+    [Header("伤害设置")]
+    public float damagePerSecond = 5f;
+    public float damageInterval = 1f;
+
+    [Header("UI 引用")]
+    public Slider buffSlider;
+    public TMP_Text buffText;
+    public TMP_Text weatherStatusText;
+
+    [Header("颜色设置")]
+    public Color safeColor = Color.green;
+    public Color warningColor = Color.yellow;
+    public Color dangerColor = Color.red;
+
+    private bool isBuffFull = false;
+    private float damageTimer = 0f;
+    private WeatherState currentWeather = WeatherState.Sunny;
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        currentBuff = 0f;
+        UpdateBuffUI();
+        UpdateWeatherStatus();
+
+        // 默认隐藏数值文字
+        if (buffText != null)
+            buffText.gameObject.SetActive(false);
+    }
+
+    void Update()
+    {
+        if (WeatherSystem.Instance != null)
+        {
+            currentWeather = WeatherSystem.Instance.GetCurrentWeather();
+        }
+
+        switch (currentWeather)
+        {
+            case WeatherState.Sunny:
+                if (currentBuff > 0)
+                {
+                    currentBuff -= buffDecreaseRate * Time.deltaTime;
+                    if (currentBuff < 0) currentBuff = 0;
+                    isBuffFull = false;
+                }
+                break;
+
+            case WeatherState.Rainy:
+            case WeatherState.Snowy:
+                if (currentBuff < maxBuff)
+                {
+                    currentBuff += buffIncreaseRate * Time.deltaTime;
+                    if (currentBuff >= maxBuff)
+                    {
+                        currentBuff = maxBuff;
+                        isBuffFull = true;
+                    }
+                }
+                break;
+        }
+
+        if (isBuffFull && currentBuff >= maxBuff)
+        {
+            damageTimer += Time.deltaTime;
+            if (damageTimer >= damageInterval)
+            {
+                damageTimer = 0f;
+                if (PlayerHealth.Instance != null)
+                {
+                    PlayerHealth.Instance.TakeDamage((int)damagePerSecond);
+                }
+            }
+        }
+        else
+        {
+            damageTimer = 0f;
+        }
+
+        // ===== 检测鼠标是否悬停在 Buff 条上 =====
+        if (buffSlider != null && buffText != null)
+        {
+            bool isHovering = RectTransformUtility.RectangleContainsScreenPoint(
+                buffSlider.GetComponent<RectTransform>(),
+                Input.mousePosition
+            );
+
+            buffText.gameObject.SetActive(isHovering);
+
+            if (isHovering)
+            {
+                float percent = (currentBuff / maxBuff) * 100f;
+                buffText.text = $"Buff: {percent:F0}%";
+            }
+        }
+
+        UpdateBuffUI();
+        UpdateWeatherStatus();
+    }
+
+    void UpdateBuffUI()
+    {
+        if (buffSlider != null)
+        {
+            buffSlider.maxValue = maxBuff;
+            buffSlider.value = currentBuff;
+        }
+
+        // 更新 Buff 条颜色
+        if (buffSlider != null)
+        {
+            Image fillImage = buffSlider.fillRect?.GetComponent<Image>();
+            if (fillImage != null)
+            {
+                float percent = currentBuff / maxBuff;
+                if (percent >= 0.8f)
+                    fillImage.color = dangerColor;
+                else if (percent >= 0.5f)
+                    fillImage.color = warningColor;
+                else
+                    fillImage.color = safeColor;
+            }
+        }
+    }
+
+    void UpdateWeatherStatus()
+    {
+        if (weatherStatusText == null) return;
+
+        float percent = (currentBuff / maxBuff) * 100f;
+
+        if (percent >= 80f)
+        {
+            weatherStatusText.text = "Dangerous!";
+            weatherStatusText.color = dangerColor;
+        }
+        else if (percent >= 50f)
+        {
+            weatherStatusText.text = "Safe";
+            weatherStatusText.color = warningColor;
+        }
+        else
+        {
+            weatherStatusText.text = "Safe";
+            weatherStatusText.color = safeColor;
+        }
+    }
+
+    public void ResetBuff()
+    {
+        currentBuff = 0f;
+        isBuffFull = false;
+        damageTimer = 0f;
+        UpdateBuffUI();
+        UpdateWeatherStatus();
+        Debug.Log("🔄 Buff 已重置");
+    }
+
+    public float GetBuffPercent()
+    {
+        return currentBuff / maxBuff;
+    }
+
+    public bool IsBuffFull()
+    {
+        return isBuffFull;
+    }
+}
