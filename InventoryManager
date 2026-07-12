@@ -1,0 +1,238 @@
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+public class InventoryManager : MonoBehaviour
+{
+    public static InventoryManager Instance;
+
+    [Header("UI References")]
+    public GameObject inventoryPanel;
+    public Transform slotContainer;
+    public GameObject slotPrefab;
+    public GameObject detailPanel;
+    public Image detailIconImage;      // 新增：道具图标
+    public TMP_Text detailNameText;
+    public TMP_Text detailDescText;
+
+    [Header("Inventory Data")]
+    public int maxSlots = 5;
+    private List<ItemData> items = new List<ItemData>();
+    private List<GameObject> slotUIList = new List<GameObject>();
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+
+        Debug.Log("=== 开始生成格子 ===");
+
+        if (slotContainer == null)
+        {
+            Debug.LogError("❌ slotContainer 为空！");
+            return;
+        }
+        if (slotPrefab == null)
+        {
+            Debug.LogError("❌ slotPrefab 为空！");
+            return;
+        }
+
+        for (int i = 0; i < maxSlots; i++)
+        {
+            GameObject slot = Instantiate(slotPrefab, slotContainer);
+            slotUIList.Add(slot);
+            int index = i;
+
+            Button btn = slot.GetComponent<Button>();
+            if (btn != null)
+            {
+                btn.onClick.RemoveAllListeners();
+                btn.onClick.AddListener(() => OnSlotClicked(index));
+                Debug.Log("格子 " + i + " 绑定点击事件成功");
+            }
+            else
+            {
+                Debug.LogWarning("❌ 格子 " + i + " 没有 Button 组件！");
+            }
+        }
+        Debug.Log("✅ 成功生成 " + slotUIList.Count + " 个格子");
+
+        UpdateUI();
+
+        if (inventoryPanel != null)
+            inventoryPanel.SetActive(false);
+        if (detailPanel != null)
+            detailPanel.SetActive(false);
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+
+    void Start()
+    {
+        if (inventoryPanel != null)
+            inventoryPanel.SetActive(false);
+        if (detailPanel != null)
+            detailPanel.SetActive(false);
+    }
+
+    void Update()
+    {
+        GameObject mainMenu = GameObject.Find("MainMenuCanvas");
+        if (mainMenu != null && mainMenu.activeSelf)
+            return;
+
+        if (Input.GetKeyDown(KeyCode.I))
+        {
+            Debug.Log("I键被按下");
+            if (inventoryPanel != null)
+            {
+                bool isOpen = inventoryPanel.activeSelf;
+                bool newState = !isOpen;
+                inventoryPanel.SetActive(newState);
+
+                if (newState)
+                {
+                    Cursor.lockState = CursorLockMode.None;
+                    Cursor.visible = true;
+                    Debug.Log("🖱️ 鼠标已解锁（背包打开）");
+                }
+                else
+                {
+                    Cursor.lockState = CursorLockMode.Locked;
+                    Cursor.visible = false;
+                    Debug.Log("🖱️ 鼠标已锁定（背包关闭）");
+                }
+
+                if (detailPanel != null)
+                    detailPanel.SetActive(false);
+            }
+        }
+    }
+
+    public void AddItem(ItemData newItem)
+    {
+        if (items.Count >= maxSlots)
+        {
+            Debug.LogWarning("背包已满！");
+            return;
+        }
+        items.Add(newItem);
+        UpdateUI();
+        Debug.Log("✅ 添加物品：" + newItem.itemName);
+    }
+
+    void UpdateUI()
+    {
+        for (int i = 0; i < slotUIList.Count; i++)
+        {
+            GameObject slot = slotUIList[i];
+            if (slot == null) continue;
+
+            Transform iconTransform = slot.transform.Find("Icon");
+            if (iconTransform == null) iconTransform = slot.transform.Find("Image");
+
+            Transform countTransform = slot.transform.Find("CountText");
+            if (countTransform == null) countTransform = slot.transform.Find("Text");
+
+            if (iconTransform == null) continue;
+
+            Image iconImage = iconTransform.GetComponent<Image>();
+            if (iconImage == null) continue;
+
+            Text countTextLegacy = null;
+            TMP_Text countTextTMP = null;
+            if (countTransform != null)
+            {
+                countTextLegacy = countTransform.GetComponent<Text>();
+                countTextTMP = countTransform.GetComponent<TMP_Text>();
+            }
+
+            if (i < items.Count)
+            {
+                ItemData data = items[i];
+                iconImage.sprite = data.itemIcon;
+                iconImage.enabled = true;
+                if (countTextLegacy != null) countTextLegacy.text = "1";
+                if (countTextTMP != null) countTextTMP.text = "1";
+            }
+            else
+            {
+                iconImage.sprite = null;
+                iconImage.enabled = false;
+                if (countTextLegacy != null) countTextLegacy.text = "";
+                if (countTextTMP != null) countTextTMP.text = "";
+            }
+        }
+    }
+
+    void OnSlotClicked(int index)
+    {
+        Debug.Log("🖱️ 点击了格子 " + index + "，当前道具数量：" + items.Count);
+
+        if (detailPanel == null)
+        {
+            Debug.LogError("❌ detailPanel 为空！");
+            return;
+        }
+
+        if (index >= items.Count)
+        {
+            Debug.Log("格子 " + index + " 是空的，不显示详情");
+            detailPanel.SetActive(false);
+            return;
+        }
+
+        ItemData data = items[index];
+        if (data == null)
+        {
+            Debug.LogWarning("格子 " + index + " 的道具数据为空");
+            return;
+        }
+
+        // ===== 显示道具图标 =====
+        if (detailIconImage != null)
+        {
+            detailIconImage.sprite = data.itemIcon;
+            detailIconImage.enabled = true;
+        }
+
+        if (detailNameText != null)
+            detailNameText.text = data.itemName;
+
+        if (detailDescText != null)
+            detailDescText.text = data.description;
+
+        detailPanel.SetActive(true);
+
+        Debug.Log("✅ 显示详情：" + data.itemName);
+    }
+
+    public void CloseDetail()
+    {
+        if (detailPanel != null)
+            detailPanel.SetActive(false);
+        Debug.Log("关闭详情面板");
+    }
+
+    void OnApplicationFocus(bool hasFocus)
+    {
+        if (!hasFocus)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        else
+        {
+            if (inventoryPanel != null && !inventoryPanel.activeSelf)
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
+        }
+    }
+}
