@@ -1,0 +1,82 @@
+using UnityEngine;
+
+public class AudioManager : MonoBehaviour
+{
+    public static AudioManager Instance;
+
+    [Header("音效来源")]
+    public AudioSource sfxSource;
+    public AudioSource bgmSource;
+
+    [Header("音效剪辑")]
+    public AudioClip checkpointSound;
+    public AudioClip victorySound;
+    public AudioClip gameOverSound;
+
+    [Header("音量设置")]
+    [Range(0f, 1f)]
+    public float masterVolume = 0.5f;
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        SetMasterVolume(masterVolume);
+    }
+
+    public void PlayCheckpointSound()
+    {
+        if (sfxSource == null || checkpointSound == null) return;
+        sfxSource.PlayOneShot(checkpointSound);
+    }
+
+    public void PlayVictorySound()
+    {
+        if (sfxSource == null || victorySound == null) return;
+        sfxSource.PlayOneShot(victorySound);
+    }
+
+    public void PlayGameOverSound()
+    {
+        if (sfxSource == null || gameOverSound == null) return;
+        sfxSource.PlayOneShot(gameOverSound);
+    }
+
+    public void SetMasterVolume(float volume)
+    {
+        masterVolume = Mathf.Clamp01(volume);
+
+        // 控制音效
+        if (sfxSource != null)
+            sfxSource.volume = masterVolume;
+
+        // 控制背景音乐
+        if (bgmSource != null)
+            bgmSource.volume = masterVolume;
+
+        // 控制视频音量
+        if (VideoController.Instance != null)
+        {
+            VideoController.Instance.SetVolume(masterVolume);
+        }
+
+        // 同步 BackgroundMusicController
+        if (BackgroundMusicController.Instance != null)
+        {
+            BackgroundMusicController.Instance.SetVolume(masterVolume);
+        }
+
+        Debug.Log($"🎵 全局音量：{masterVolume * 100:F0}%");
+    }
+
+    public float GetMasterVolume()
+    {
+        return masterVolume;
+    }
+}
