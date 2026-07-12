@@ -1,0 +1,206 @@
+using UnityEngine;
+using TMPro;
+
+public class TaskManager : MonoBehaviour
+{
+    public static TaskManager Instance;
+
+    [Header("任务数据")]
+    public TaskData currentTask;
+    public int currentProgress = 0;
+    public bool isTaskAccepted = false;
+    public bool isTaskCompleted = false;
+
+    [Header("UI 引用")]
+    public GameObject taskPanel;
+    public TMP_Text taskNameText;
+    public TMP_Text taskDescText;
+    public TMP_Text taskProgressText;
+    public TMP_Text taskStatusText;
+
+    [Header("对话 UI")]
+    public GameObject dialogPanel;
+    public TMP_Text dialogText;
+
+    private void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        if (taskPanel != null)
+            taskPanel.SetActive(false);
+        if (dialogPanel != null)
+            dialogPanel.SetActive(false);
+        UpdateTaskUI();
+    }
+
+    public void ShowTaskPanel()
+    {
+        if (taskPanel != null)
+            taskPanel.SetActive(true);
+    }
+
+    public void HideTaskPanel()
+    {
+        if (taskPanel != null)
+            taskPanel.SetActive(false);
+    }
+
+    // 在 TaskManager.cs 中添加这个方法
+    public void UpdateUI()
+    {
+        if (taskPanel == null) return;
+
+        if (isTaskCompleted)
+        {
+            taskNameText.text = "[完成] " + currentTask.taskName;
+            taskDescText.text = "已完成！";
+            taskProgressText.text = $"{currentProgress} / {currentTask.requiredCount}";
+            taskStatusText.text = "已完成";
+            taskStatusText.color = Color.green;
+        }
+        else if (isTaskAccepted)
+        {
+            taskNameText.text = "[任务] " + currentTask.taskName;
+            taskDescText.text = currentTask.taskDescription;
+            taskProgressText.text = $"{currentProgress} / {currentTask.requiredCount}";
+            taskStatusText.text = "进行中";
+            taskStatusText.color = Color.yellow;
+        }
+        else
+        {
+            taskNameText.text = "[任务] " + currentTask.taskName;
+            taskDescText.text = currentTask.taskDescription;
+            taskProgressText.text = $"0 / {currentTask.requiredCount}";
+            taskStatusText.text = "未领取";
+            taskStatusText.color = Color.gray;
+        }
+    }
+    public void AcceptTask()
+    {
+        if (isTaskCompleted)
+        {
+            ShowDialog("任务已经完成了！");
+            return;
+        }
+
+        if (isTaskAccepted)
+        {
+            ShowDialog("你已经领取了任务，快去打卡吧！");
+            return;
+        }
+
+        isTaskAccepted = true;
+        currentProgress = 0;
+        UpdateTaskUI();
+        ShowDialog("任务已领取！\n打卡所有 5 个打卡点！");
+        Debug.Log("任务已领取");
+    }
+
+    public void UpdateProgress()
+    {
+        if (!isTaskAccepted || isTaskCompleted) return;
+
+        currentProgress++;
+        UpdateTaskUI();
+        Debug.Log($"任务进度：{currentProgress}/{currentTask.requiredCount}");
+
+        if (currentProgress >= currentTask.requiredCount)
+        {
+            CompleteTask();
+        }
+    }
+
+    void CompleteTask()
+    {
+        isTaskCompleted = true;
+        isTaskAccepted = false;
+
+        if (ScoreManager.Instance != null)
+        {
+            ScoreManager.Instance.AddScore(currentTask.rewardScore);
+        }
+
+        UpdateTaskUI();
+        ShowDialog($"任务完成！\n获得 {currentTask.rewardScore} 分奖励！");
+        Debug.Log($"任务完成！奖励 {currentTask.rewardScore} 分");
+    }
+
+    void UpdateTaskUI()
+    {
+        if (taskPanel == null) return;
+
+        if (isTaskCompleted)
+        {
+            taskNameText.text = "[完成] " + currentTask.taskName;
+            taskDescText.text = "已完成！";
+            taskProgressText.text = $"{currentProgress} / {currentTask.requiredCount}";
+            taskStatusText.text = "已完成";
+            taskStatusText.color = Color.green;
+            return;
+        }
+
+        if (isTaskAccepted)
+        {
+            taskNameText.text = "[任务] " + currentTask.taskName;
+            taskDescText.text = currentTask.taskDescription;
+            taskProgressText.text = $"{currentProgress} / {currentTask.requiredCount}";
+            taskStatusText.text = "进行中";
+            taskStatusText.color = Color.yellow;
+            return;
+        }
+
+        taskNameText.text = "[任务] " + currentTask.taskName;
+        taskDescText.text = currentTask.taskDescription;
+        taskProgressText.text = $"0 / {currentTask.requiredCount}";
+        taskStatusText.text = "未领取";
+        taskStatusText.color = Color.gray;
+    }
+
+    public void ShowDialog(string message)
+    {
+        if (dialogPanel == null || dialogText == null) return;
+
+        dialogText.text = message;
+        dialogPanel.SetActive(true);
+        Invoke("HideDialog", 3f);
+    }
+
+    void HideDialog()
+    {
+        if (dialogPanel != null)
+            dialogPanel.SetActive(false);
+    }
+
+    public void ToggleTaskPanel()
+    {
+        if (taskPanel == null) return;
+
+        bool isOpen = taskPanel.activeSelf;
+        taskPanel.SetActive(!isOpen);
+    }
+
+    public bool IsTaskCompleted()
+    {
+        return isTaskCompleted;
+    }
+
+    public bool IsTaskAccepted()
+    {
+        return isTaskAccepted;
+    }
+
+    public void ResetTask()
+    {
+        isTaskAccepted = false;
+        isTaskCompleted = false;
+        currentProgress = 0;
+        UpdateTaskUI();
+        Debug.Log("任务已重置");
+    }
+}
