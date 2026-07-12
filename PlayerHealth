@@ -1,0 +1,209 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+using System.Collections;
+
+public class PlayerHealth : MonoBehaviour
+{
+    public static PlayerHealth Instance;
+
+    [Header("生命值设置")]
+    public int maxHealth = 100;
+    public int currentHealth;
+
+    [Header("UI 引用")]
+    public Slider healthSlider;
+    public TMP_Text healthText;
+
+    [Header("受伤效果")]
+    public float damageFlashDuration = 0.2f;
+    public Material flashMaterial;
+    private Material originalMaterial;
+    private Renderer playerRenderer;
+    private bool isFlashing = false;
+
+    [Header("死亡")]
+    public GameObject deathPanel;
+    public float deathDelay = 2f;
+
+    private bool isDead = false;
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        currentHealth = maxHealth;
+        UpdateHealthUI();
+
+        playerRenderer = GetComponentInChildren<Renderer>();
+        if (playerRenderer != null)
+        {
+            originalMaterial = playerRenderer.material;
+        }
+
+        if (deathPanel != null)
+            deathPanel.SetActive(false);
+
+        // 默认隐藏数值文字
+        if (healthText != null)
+            healthText.gameObject.SetActive(false);
+    }
+
+    void Update()
+    {
+        // 检测鼠标是否悬停在血条上
+        if (healthSlider != null && healthText != null)
+        {
+            bool isHovering = RectTransformUtility.RectangleContainsScreenPoint(
+                healthSlider.GetComponent<RectTransform>(),
+                Input.mousePosition
+            );
+
+            healthText.gameObject.SetActive(isHovering);
+
+            // 如果悬停，更新数值（确保实时）
+            if (isHovering)
+            {
+                healthText.text = $"{currentHealth} / {maxHealth}";
+            }
+        }
+    }
+
+    // 在 PlayerHealth.cs 中添加这个方法
+    public void UpdateUI()
+    {
+        if (healthSlider != null)
+        {
+            healthSlider.maxValue = maxHealth;
+            healthSlider.value = currentHealth;
+        }
+        if (healthText != null)
+        {
+            healthText.text = $"{currentHealth} / {maxHealth}";
+        }
+    }
+    public void TakeDamage(int damage)
+    {
+        if (isDead) return;
+
+        currentHealth -= damage;
+        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+
+        UpdateHealthUI();
+        StartCoroutine(FlashDamage());
+
+        if (currentHealth <= 0)
+        {
+            Die();
+        }
+
+        Debug.Log($"💥 受到 {damage} 点伤害，剩余生命：{currentHealth}");
+    }
+
+    public void Heal(int amount)
+    {
+        if (isDead) return;
+
+        currentHealth += amount;
+        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+
+        UpdateHealthUI();
+        Debug.Log($"💚 恢复 {amount} 点生命，当前生命：{currentHealth}");
+    }
+
+    void UpdateHealthUI()
+    {
+        if (healthSlider != null)
+        {
+            healthSlider.maxValue = maxHealth;
+            healthSlider.value = currentHealth;
+        }
+
+        // 更新文字（但只在悬停时显示）
+        if (healthText != null)
+        {
+            healthText.text = $"{currentHealth} / {maxHealth}";
+        }
+    }
+
+    IEnumerator FlashDamage()
+    {
+        if (isFlashing) yield break;
+        isFlashing = true;
+
+        if (playerRenderer != null && flashMaterial != null)
+        {
+            playerRenderer.material = flashMaterial;
+            yield return new WaitForSeconds(damageFlashDuration);
+            playerRenderer.material = originalMaterial;
+        }
+
+        isFlashing = false;
+    }
+
+    void Die()
+    {
+        if (isDead) return;
+        isDead = true;
+
+        Debug.Log("💀 玩家死亡！");
+
+        PlayerController playerController = GetComponent<PlayerController>();
+        if (playerController != null)
+            playerController.enabled = false;
+
+        if (deathPanel != null)
+            deathPanel.SetActive(true);
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    public void Revive()
+    {
+        isDead = false;
+        currentHealth = maxHealth;
+        UpdateHealthUI();
+
+        PlayerController playerController = GetComponent<PlayerController>();
+        if (playerController != null)
+            playerController.enabled = true;
+
+        if (deathPanel != null)
+            deathPanel.SetActive(false);
+
+        if (WeatherBuffSystem.Instance != null)
+            WeatherBuffSystem.Instance.ResetBuff();
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        Debug.Log("🔄 玩家复活！");
+    }
+
+    public float GetHealthPercent()
+    {
+        return (float)currentHealth / maxHealth;
+    }
+
+    // ===== 测试伤害 =====
+    void OnGUI()
+    {
+        // 按 H 受到伤害（仅测试用）
+        if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.H)
+        {
+            TakeDamage(10);
+        }
+        // 按 J 恢复生命（仅测试用）
+        if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.J)
+        {
+            Heal(10);
+        }
+    }
+}
