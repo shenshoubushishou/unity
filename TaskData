@@ -1,0 +1,10 @@
+using UnityEngine;  // ← 添加这行
+
+[CreateAssetMenu(fileName = "NewTask", menuName = "Task/TaskData")]
+public class TaskData : ScriptableObject
+{
+    public string taskName;
+    public string taskDescription;
+    public int requiredCount;
+    public int rewardScore;
+}
