@@ -1,0 +1,30 @@
+using System;
+using System.Collections.Generic;
+
+[Serializable]
+public class SaveData
+{
+    public int score;
+    public int totalCheckpoints;
+
+    public bool isTaskAccepted;
+    public bool isTaskCompleted;
+    public int taskProgress;
+    public string taskName;
+
+    public List<string> collectedItems;
+
+    // ===== 已打卡的ID列表 =====
+    public List<int> completedCheckpointIDs;
+
+    public float gameTime;
+    public string weatherState;
+
+    public float playerX;
+    public float playerY;
+    public float playerZ;
+
+    public int playerHealth;
+
+    public string saveDate;
+}
