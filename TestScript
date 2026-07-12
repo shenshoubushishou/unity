@@ -1,0 +1,22 @@
+using UnityEngine;
+
+public class TestScript : MonoBehaviour
+{
+    void Awake()
+    {
+        Debug.Log("=== TestScript Awake 执行了 ===");
+    }
+
+    void Start()
+    {
+        Debug.Log("=== TestScript Start 执行了 ===");
+    }
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.T))
+        {
+            Debug.Log("=== T 键被按下 ===");
+        }
+    }
+}
