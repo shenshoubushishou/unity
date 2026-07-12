@@ -1,0 +1,66 @@
+using UnityEngine;
+
+public class MiniMapController : MonoBehaviour
+{
+    [Header("跟随设置")]
+    public Transform player;
+    public float followHeight = 120f;     // 10f × 12
+    public float followSpeed = 8f;
+
+    [Header("旋转设置")]
+    public bool rotateWithPlayer = false;
+
+    private Camera miniMapCamera;
+    private Vector3 targetPosition;
+
+    void Start()
+    {
+        miniMapCamera = GetComponent<Camera>();
+
+        if (player == null)
+        {
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+                player = playerObj.transform;
+        }
+
+        if (player != null)
+        {
+            targetPosition = new Vector3(player.position.x, followHeight, player.position.z);
+            transform.position = targetPosition;
+            transform.rotation = Quaternion.Euler(90, 0, 0);
+        }
+
+        if (miniMapCamera != null)
+        {
+            miniMapCamera.enabled = true;
+            miniMapCamera.orthographicSize = 120f;  // 自动设置 Size
+        }
+    }
+
+    void LateUpdate()
+    {
+        if (player == null) return;
+
+        targetPosition = new Vector3(player.position.x, followHeight, player.position.z);
+        transform.position = Vector3.Lerp(transform.position, targetPosition, followSpeed * Time.deltaTime);
+
+        if (rotateWithPlayer)
+        {
+            transform.rotation = Quaternion.Euler(90, player.eulerAngles.y, 0);
+        }
+        else
+        {
+            transform.rotation = Quaternion.Euler(90, 0, 0);
+        }
+    }
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            rotateWithPlayer = !rotateWithPlayer;
+            Debug.Log("小地图旋转模式：" + (rotateWithPlayer ? "跟随玩家" : "固定北向"));
+        }
+    }
+}
