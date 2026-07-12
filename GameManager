@@ -1,0 +1,104 @@
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using TMPro;
+
+public class GameManager : MonoBehaviour
+{
+    public static GameManager Instance;
+
+    [Header("游戏状态")]
+    public bool isGameOver = false;
+    public bool isVictory = false;
+
+    [Header("UI 引用")]
+    public GameObject gameOverPanel;
+    public TMP_Text titleText;
+    public TMP_Text descText;
+    public UnityEngine.UI.Button restartButton;
+
+    private void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(false);
+
+        if (restartButton != null)
+            restartButton.onClick.AddListener(RestartGame);
+    }
+
+    // ===== 游戏胜利 =====
+    public void Victory()
+    {
+        if (isGameOver) return;
+
+        isGameOver = true;
+        isVictory = true;
+
+        ShowGameOver("🎉 胜利！", "你完成了所有打卡点！\n任务完成！", Color.green);
+        Debug.Log("🎉 游戏胜利！");
+    }
+
+    // ===== 游戏失败 =====
+    public void GameOver()
+    {
+        if (isGameOver) return;
+
+        isGameOver = true;
+        isVictory = false;
+
+        ShowGameOver("💀 失败", "你还没有完成所有打卡点！\n继续加油吧！", Color.red);
+        Debug.Log("💀 游戏失败");
+    }
+
+    // ===== 显示游戏结束画面 =====
+    void ShowGameOver(string title, string desc, Color color)
+    {
+        if (gameOverPanel == null) return;
+
+        gameOverPanel.SetActive(true);
+
+        if (titleText != null)
+        {
+            titleText.text = title;
+            titleText.color = color;
+        }
+
+        if (descText != null)
+        {
+            descText.text = desc;
+        }
+
+        // 解锁鼠标
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        // 暂停游戏
+        Time.timeScale = 0f;
+    }
+
+    // ===== 重新开始 =====
+    public void RestartGame()
+    {
+        Debug.Log("🔄 重新开始游戏");
+
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        // 重新加载当前场景
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    // ===== 检查是否游戏结束 =====
+    public bool IsGameOver()
+    {
+        return isGameOver;
+    }
+}
