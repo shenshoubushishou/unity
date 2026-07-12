@@ -1,0 +1,216 @@
+using UnityEngine;
+using System.IO;
+using System.Collections.Generic;
+
+public class SaveManager : MonoBehaviour
+{
+    public static SaveManager Instance;
+
+    private string savePath;
+
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+            savePath = Path.Combine(Application.persistentDataPath, "saveData.json");
+            Debug.Log($"✅ SaveManager 已初始化");
+            Debug.Log($"📁 存档路径：{savePath}");
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    public bool HasSave()
+    {
+        return File.Exists(savePath);
+    }
+
+    public void SaveGame()
+    {
+        try
+        {
+            SaveData data = new SaveData();
+
+            // ===== 1. 得分 =====
+            if (ScoreManager.Instance != null)
+            {
+                data.score = ScoreManager.Instance.currentScore;
+                data.totalCheckpoints = ScoreManager.Instance.totalCheckpoints;
+            }
+
+            // ===== 2. 任务 =====
+            if (TaskManager.Instance != null)
+            {
+                data.isTaskAccepted = TaskManager.Instance.IsTaskAccepted();
+                data.isTaskCompleted = TaskManager.Instance.IsTaskCompleted();
+                data.taskProgress = TaskManager.Instance.currentProgress;
+                if (TaskManager.Instance.currentTask != null)
+                {
+                    data.taskName = TaskManager.Instance.currentTask.taskName;
+                }
+            }
+
+            // ===== 3. 背包道具 =====
+            data.collectedItems = new List<string>();
+
+            // ===== 4. 打卡点记录 =====
+            data.completedCheckpointIDs = new List<int>();
+            Checkpoint[] checkpoints = FindObjectsOfType<Checkpoint>();
+            foreach (Checkpoint cp in checkpoints)
+            {
+                if (cp != null && cp.IsCompleted())
+                {
+                    data.completedCheckpointIDs.Add(cp.checkpointID);
+                }
+            }
+            Debug.Log($"📌 保存 {data.completedCheckpointIDs.Count} 个已打卡点");
+
+            // ===== 5. 玩家位置 =====
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null)
+            {
+                data.playerX = player.transform.position.x;
+                data.playerY = player.transform.position.y;
+                data.playerZ = player.transform.position.z;
+            }
+
+            // ===== 6. 玩家生命 =====
+            if (PlayerHealth.Instance != null)
+            {
+                data.playerHealth = PlayerHealth.Instance.currentHealth;
+            }
+
+            // ===== 7. 游戏时间 =====
+            if (DayNightController.Instance != null)
+            {
+                data.gameTime = DayNightController.Instance.currentTime;
+            }
+
+            // ===== 8. 天气 =====
+            if (WeatherSystem.Instance != null)
+            {
+                data.weatherState = WeatherSystem.Instance.GetCurrentWeather().ToString();
+            }
+
+            // ===== 9. 存档时间 =====
+            data.saveDate = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+            // ===== 写入文件 =====
+            string json = JsonUtility.ToJson(data, true);
+            File.WriteAllText(savePath, json);
+
+            Debug.Log($"💾 游戏已保存！({data.saveDate})");
+            Debug.Log($"   📍 位置：({data.playerX:F1}, {data.playerY:F1}, {data.playerZ:F1})");
+            Debug.Log($"   ⭐ 得分：{data.score}/{data.totalCheckpoints}");
+            Debug.Log($"   📌 已打卡：{data.completedCheckpointIDs.Count}");
+            Debug.Log($"   📋 任务进度：{data.taskProgress}");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"❌ 保存失败：{e.Message}");
+        }
+    }
+
+    public void LoadGame()
+    {
+        if (!HasSave())
+        {
+            Debug.LogWarning("⚠️ 没有存档文件！");
+            return;
+        }
+
+        try
+        {
+            string json = File.ReadAllText(savePath);
+            SaveData data = JsonUtility.FromJson<SaveData>(json);
+
+            Debug.Log($"📂 读取存档 ({data.saveDate})");
+
+            // ===== 1. 得分 =====
+            if (ScoreManager.Instance != null)
+            {
+                ScoreManager.Instance.currentScore = data.score;
+                ScoreManager.Instance.totalCheckpoints = data.totalCheckpoints;
+                ScoreManager.Instance.UpdateUI();
+            }
+
+            // ===== 2. 任务 =====
+            if (TaskManager.Instance != null)
+            {
+                TaskManager.Instance.currentProgress = data.taskProgress;
+                if (data.isTaskAccepted)
+                {
+                    TaskManager.Instance.isTaskAccepted = true;
+                }
+                if (data.isTaskCompleted)
+                {
+                    TaskManager.Instance.isTaskCompleted = true;
+                }
+                TaskManager.Instance.UpdateUI();
+            }
+
+            // ===== 3. 打卡点恢复 =====
+            Checkpoint[] checkpoints = FindObjectsOfType<Checkpoint>();
+            int restoredCount = 0;
+            foreach (Checkpoint cp in checkpoints)
+            {
+                if (cp != null && data.completedCheckpointIDs.Contains(cp.checkpointID))
+                {
+                    cp.SetCompleted();
+                    restoredCount++;
+                }
+            }
+            Debug.Log($"📌 恢复 {restoredCount} 个已打卡点");
+
+            // ===== 4. 玩家位置 =====
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null)
+            {
+                Vector3 pos = new Vector3(data.playerX, data.playerY, data.playerZ);
+                player.transform.position = pos;
+                Debug.Log($"📍 玩家位置：{pos}");
+            }
+
+            // ===== 5. 玩家生命 =====
+            if (PlayerHealth.Instance != null)
+            {
+                PlayerHealth.Instance.currentHealth = data.playerHealth;
+                PlayerHealth.Instance.UpdateUI();
+            }
+
+            // ===== 6. 游戏时间 =====
+            if (DayNightController.Instance != null)
+            {
+                DayNightController.Instance.SetTime(data.gameTime);
+            }
+
+            // ===== 7. 天气 =====
+            if (WeatherSystem.Instance != null)
+            {
+                if (System.Enum.TryParse<WeatherState>(data.weatherState, out WeatherState state))
+                {
+                    WeatherSystem.Instance.SetWeather(state);
+                }
+            }
+
+            Debug.Log("✅ 游戏读取成功！");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"❌ 读取失败：{e.Message}");
+        }
+    }
+
+    public void DeleteSave()
+    {
+        if (File.Exists(savePath))
+        {
+            File.Delete(savePath);
+            Debug.Log("🗑️ 存档已删除");
+        }
+    }
+}
