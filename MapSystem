@@ -1,0 +1,289 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+using System.Collections.Generic;
+
+public class MapSystem : MonoBehaviour
+{
+    public static MapSystem Instance;
+
+    [Header("摄像机")]
+    public Camera mapCamera;
+    public float mapCameraHeight = 30f;
+
+    [Header("UI 引用")]
+    public GameObject mapPanel;
+    public RectTransform mapImageRect;
+    public Transform markersContainer;
+    public GameObject mapMarkerPrefab;
+    public GameObject detailPanel;
+    public TMP_Text detailNameText;
+    public TMP_Text detailDescText;
+    public Button closeButton;
+
+    [Header("打卡点列表（自动收集）")]
+    public List<Checkpoint> allCheckpoints = new List<Checkpoint>();
+
+    // ===== 硬编码坐标（相对于地图图片的百分比位置 0~1） =====
+    // 根据你手动拖拽的位置换算成百分比
+    private Vector2[] fixedPercentPositions = new Vector2[]
+    {
+        new Vector2(0.35f, 0.45f),   // Checkpoint_1 (2)
+        new Vector2(0.40f, 0.15f),   // Checkpoint_1
+        new Vector2(0.55f, 0.30f)    // Checkpoint_1 (1)
+    };
+
+    private List<GameObject> markerUIList = new List<GameObject>();
+    private bool isMapOpen = false;
+    private Transform playerTransform;
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        if (mapPanel != null)
+            mapPanel.SetActive(false);
+        if (detailPanel != null)
+            detailPanel.SetActive(false);
+
+        if (closeButton != null)
+            closeButton.onClick.AddListener(CloseMap);
+
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+            playerTransform = player.transform;
+
+        FindAllCheckpoints();
+        GenerateMarkers();
+    }
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.M))
+        {
+            ToggleMap();
+        }
+
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            Debug.Log("🔄 强制刷新地图");
+            FindAllCheckpoints();
+            GenerateMarkers();
+        }
+
+        if (isMapOpen && mapCamera != null && playerTransform != null)
+        {
+            Vector3 targetPos = new Vector3(playerTransform.position.x, mapCameraHeight, playerTransform.position.z);
+            mapCamera.transform.position = Vector3.Lerp(mapCamera.transform.position, targetPos, Time.deltaTime * 5f);
+            mapCamera.transform.rotation = Quaternion.Euler(90, 0, 0);
+        }
+    }
+
+    void FindAllCheckpoints()
+    {
+        Checkpoint[] found = FindObjectsOfType<Checkpoint>();
+        allCheckpoints.Clear();
+        foreach (var cp in found)
+        {
+            allCheckpoints.Add(cp);
+        }
+        Debug.Log($"🗺️ 找到 {allCheckpoints.Count} 个打卡点");
+    }
+
+    void GenerateMarkers()
+    {
+        if (mapMarkerPrefab == null || markersContainer == null)
+        {
+            Debug.LogError("❌ mapMarkerPrefab 或 markersContainer 为空！");
+            return;
+        }
+
+        foreach (var marker in markerUIList)
+        {
+            if (marker != null) Destroy(marker);
+        }
+        markerUIList.Clear();
+
+        // 获取地图图片容器的尺寸
+        RectTransform containerRect = markersContainer.GetComponent<RectTransform>();
+        if (containerRect == null)
+        {
+            Debug.LogError("❌ markersContainer 没有 RectTransform！");
+            return;
+        }
+
+        Vector2 containerSize = containerRect.rect.size;
+
+        int count = Mathf.Min(allCheckpoints.Count, fixedPercentPositions.Length);
+
+        for (int i = 0; i < count; i++)
+        {
+            Checkpoint cp = allCheckpoints[i];
+            if (cp == null) continue;
+
+            // ===== 使用百分比坐标，相对于地图图片 =====
+            Vector2 percent = fixedPercentPositions[i];
+            Vector2 uiPos = new Vector2(
+                (percent.x - 0.5f) * containerSize.x,
+                (percent.y - 0.5f) * containerSize.y
+            );
+
+            GameObject marker = Instantiate(mapMarkerPrefab, markersContainer);
+            markerUIList.Add(marker);
+
+            RectTransform rect = marker.GetComponent<RectTransform>();
+            if (rect != null)
+            {
+                rect.anchoredPosition = uiPos;
+            }
+
+            Image icon = marker.transform.Find("MarkerIcon")?.GetComponent<Image>();
+            TMP_Text label = marker.transform.Find("MarkerLabel")?.GetComponent<TMP_Text>();
+
+            bool isCompleted = cp.IsCompleted();
+            if (icon != null)
+            {
+                icon.color = isCompleted ? Color.gray : Color.red;
+            }
+            if (label != null)
+            {
+                label.text = isCompleted ? "✅" : $"{cp.checkpointID}";
+                label.color = isCompleted ? Color.gray : Color.white;
+                label.fontSize = 10;
+            }
+
+            Button btn = marker.GetComponent<Button>();
+            if (btn != null)
+            {
+                int index = i;
+                btn.onClick.RemoveAllListeners();
+                btn.onClick.AddListener(() => OnMarkerClicked(index));
+            }
+        }
+
+        Debug.Log($"🗺️ 生成了 {markerUIList.Count} 个地图标记");
+    }
+
+    void OnMarkerClicked(int index)
+    {
+        if (index >= allCheckpoints.Count) return;
+
+        Checkpoint cp = allCheckpoints[index];
+        if (cp == null) return;
+
+        ItemData item = cp.GetRelatedItem();
+        if (item == null)
+        {
+            Debug.LogWarning("⚠️ 该打卡点没有关联道具");
+            return;
+        }
+
+        if (detailPanel != null)
+        {
+            if (detailNameText != null)
+                detailNameText.text = item.itemName;
+            if (detailDescText != null)
+            {
+                detailDescText.text = item.description;
+                detailDescText.text += cp.IsCompleted() ? "\n\n✅ 已打卡收集" : "\n\n📍 未打卡";
+            }
+            detailPanel.SetActive(true);
+        }
+
+        Debug.Log($"🗺️ 点击标记：{item.itemName}（{(cp.IsCompleted() ? "已打卡" : "未打卡")}）");
+    }
+
+    public void ToggleMap()
+    {
+        if (mapPanel == null) return;
+
+        isMapOpen = !isMapOpen;
+        mapPanel.SetActive(isMapOpen);
+
+        if (isMapOpen)
+        {
+            RefreshMarkers();
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+
+            if (mapCamera != null && playerTransform != null)
+            {
+                mapCamera.transform.position = new Vector3(playerTransform.position.x, mapCameraHeight, playerTransform.position.z);
+                mapCamera.transform.rotation = Quaternion.Euler(90, 0, 0);
+                mapCamera.enabled = true;
+            }
+
+            Debug.Log("🗺️ 大地图已打开");
+        }
+        else
+        {
+            if (detailPanel != null)
+                detailPanel.SetActive(false);
+
+            if (mapCamera != null)
+                mapCamera.enabled = false;
+
+            GameObject inventoryPanel = GameObject.Find("InventoryPanel");
+            if (inventoryPanel == null || !inventoryPanel.activeSelf)
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
+            Debug.Log("🗺️ 大地图已关闭");
+        }
+    }
+
+    public void CloseMap()
+    {
+        if (mapPanel != null)
+            mapPanel.SetActive(false);
+        if (detailPanel != null)
+            detailPanel.SetActive(false);
+        if (mapCamera != null)
+            mapCamera.enabled = false;
+        isMapOpen = false;
+
+        GameObject inventoryPanel = GameObject.Find("InventoryPanel");
+        if (inventoryPanel == null || !inventoryPanel.activeSelf)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+    }
+
+    public void RefreshMarkers()
+    {
+        for (int i = 0; i < markerUIList.Count && i < allCheckpoints.Count; i++)
+        {
+            GameObject marker = markerUIList[i];
+            Checkpoint cp = allCheckpoints[i];
+            if (marker == null || cp == null) continue;
+
+            Image icon = marker.transform.Find("MarkerIcon")?.GetComponent<Image>();
+            TMP_Text label = marker.transform.Find("MarkerLabel")?.GetComponent<TMP_Text>();
+
+            bool isCompleted = cp.IsCompleted();
+            if (icon != null)
+            {
+                icon.color = isCompleted ? Color.gray : Color.red;
+            }
+            if (label != null)
+            {
+                label.text = isCompleted ? "✅" : $"{cp.checkpointID}";
+                label.color = isCompleted ? Color.gray : Color.white;
+            }
+        }
+    }
+
+    public void OnCheckpointCompleted(int checkpointID)
+    {
+        RefreshMarkers();
+        Debug.Log($"🗺️ 打卡点 {checkpointID} 状态已更新");
+    }
+}
