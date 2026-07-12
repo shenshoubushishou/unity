@@ -1,0 +1,59 @@
+using UnityEngine;
+
+public enum WeatherState
+{
+    Sunny,
+    Rainy,
+    Snowy
+}
+
+public class WeatherSystem : MonoBehaviour
+{
+    public static WeatherSystem Instance;
+
+    [Header("特效物体")]
+    public GameObject rainyEffect;   // 下雨特效（拖入）
+    public GameObject snowyEffect;   // 下雪特效（拖入）
+
+    private WeatherState currentWeather = WeatherState.Sunny;
+
+    void Awake()
+    {
+        Instance = this;
+    }
+
+    void Start()
+    {
+        SetWeather(WeatherState.Sunny);
+    }
+
+    public void SetWeather(WeatherState newWeather)
+    {
+        currentWeather = newWeather;
+
+        // 先全部关闭
+        if (rainyEffect != null) rainyEffect.SetActive(false);
+        if (snowyEffect != null) snowyEffect.SetActive(false);
+
+        // 再打开对应的
+        switch (newWeather)
+        {
+            case WeatherState.Sunny:
+                // 全部关闭就是晴天
+                break;
+            case WeatherState.Rainy:
+                if (rainyEffect != null) rainyEffect.SetActive(true);
+                break;
+            case WeatherState.Snowy:
+                if (snowyEffect != null) snowyEffect.SetActive(true);
+                break;
+        }
+
+        Debug.Log("🌤️ 天气切换至：" + newWeather);
+    }
+
+    public WeatherState GetCurrentWeather()
+    {
+        return currentWeather;
+    }
+}
