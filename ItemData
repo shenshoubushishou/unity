@@ -1,0 +1,10 @@
+using UnityEngine;
+
+[CreateAssetMenu(fileName = "NewItem", menuName = "Inventory/Item")]
+public class ItemData : ScriptableObject
+{
+    public string itemName;
+    public Sprite itemIcon;
+    [TextArea] public string description;
+    // 可以扩展其他字段，比如稀有度等
+}
