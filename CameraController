@@ -1,0 +1,234 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+public class CameraController : MonoBehaviour
+{
+    [Header("摄像机设置")]
+    public Transform player;
+    public Transform firstPersonCamera;
+    public Transform thirdPersonCamera;
+    public Transform cameraPivot;
+
+    [Header("第一人称设置")]
+    public float firstPersonSensitivity = 2f;
+
+    [Header("第三人称设置")]
+    public float thirdPersonSensitivity = 2f;
+    public float minVerticalAngle = -30f;
+    public float maxVerticalAngle = 60f;
+
+    [Header("人物模型")]
+    public GameObject characterModel;  // 拖入人物模型
+
+    [Header("头顶血条")]
+    public GameObject headHealthBarPrefab;
+    public Vector3 headHealthBarOffset = new Vector3(0, 26.4f, 0);
+
+    [Header("当前状态")]
+    public bool isFirstPerson = true;
+
+    private float currentYaw = 0f;
+    private float currentPitch = 0f;
+    private Vector3 firstPersonOffset;
+    private Vector3 thirdPersonOffset;
+
+    private GameObject headHealthBarInstance;
+    private Slider healthBarSlider;
+
+    void Start()
+    {
+        if (player == null)
+        {
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+                player = playerObj.transform;
+        }
+
+        if (firstPersonCamera != null)
+        {
+            firstPersonOffset = firstPersonCamera.localPosition;
+            Debug.Log($"保存第一人称偏移：{firstPersonOffset}");
+        }
+
+        if (thirdPersonCamera != null && cameraPivot != null)
+        {
+            thirdPersonOffset = thirdPersonCamera.localPosition;
+            Debug.Log($"保存第三人称偏移：{thirdPersonOffset}");
+        }
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        CreateHeadHealthBar();
+        SetFirstPerson();
+    }
+
+    void Update()
+    {
+        if (player == null) return;
+
+        if (Input.GetKeyDown(KeyCode.Tab))
+        {
+            ToggleCamera();
+        }
+
+        if (Cursor.lockState == CursorLockMode.Locked)
+        {
+            float sensitivity = isFirstPerson ? firstPersonSensitivity : thirdPersonSensitivity;
+            float mouseX = Input.GetAxis("Mouse X") * sensitivity;
+            float mouseY = Input.GetAxis("Mouse Y") * sensitivity;
+
+            currentYaw += mouseX;
+            currentPitch -= mouseY;
+            currentPitch = Mathf.Clamp(currentPitch, minVerticalAngle, maxVerticalAngle);
+        }
+
+        UpdateHeadHealthBar();
+    }
+
+    void LateUpdate()
+    {
+        if (player == null) return;
+
+        if (isFirstPerson)
+        {
+            UpdateFirstPerson();
+        }
+        else
+        {
+            UpdateThirdPerson();
+        }
+    }
+
+    void UpdateFirstPerson()
+    {
+        if (firstPersonCamera == null) return;
+
+        firstPersonCamera.position = player.position + firstPersonOffset;
+
+        Quaternion targetRotation = Quaternion.Euler(currentPitch, currentYaw, 0);
+        firstPersonCamera.rotation = targetRotation;
+
+        // ===== 第一人称：隐藏人物模型 =====
+        if (characterModel != null)
+            characterModel.SetActive(false);
+
+        SetCameraActive(true);
+    }
+
+    void UpdateThirdPerson()
+    {
+        if (thirdPersonCamera == null || cameraPivot == null) return;
+
+        cameraPivot.position = player.position;
+        cameraPivot.rotation = Quaternion.Euler(currentPitch, currentYaw, 0);
+
+        thirdPersonCamera.localPosition = thirdPersonOffset;
+        thirdPersonCamera.LookAt(cameraPivot.position);
+
+        // ===== 第三人称：显示人物模型 =====
+        if (characterModel != null)
+            characterModel.SetActive(true);
+
+        SetCameraActive(false);
+    }
+
+    void CreateHeadHealthBar()
+    {
+        if (headHealthBarPrefab == null)
+        {
+            Debug.LogWarning("头顶血条预制体为空！");
+            return;
+        }
+
+        headHealthBarInstance = Instantiate(headHealthBarPrefab, player.position + headHealthBarOffset, Quaternion.identity);
+
+        healthBarSlider = headHealthBarInstance.GetComponent<Slider>();
+        if (healthBarSlider != null && PlayerHealth.Instance != null)
+        {
+            healthBarSlider.maxValue = PlayerHealth.Instance.maxHealth;
+            healthBarSlider.value = PlayerHealth.Instance.currentHealth;
+        }
+
+        Canvas canvas = headHealthBarInstance.GetComponent<Canvas>();
+        if (canvas != null)
+        {
+            canvas.worldCamera = Camera.main;
+        }
+
+        headHealthBarInstance.SetActive(!isFirstPerson);
+    }
+
+    void UpdateHeadHealthBar()
+    {
+        if (headHealthBarInstance == null) return;
+
+        headHealthBarInstance.transform.position = player.position + headHealthBarOffset;
+
+        if (thirdPersonCamera != null)
+        {
+            headHealthBarInstance.transform.LookAt(thirdPersonCamera.position);
+            headHealthBarInstance.transform.Rotate(0, 180, 0);
+        }
+
+        if (healthBarSlider != null && PlayerHealth.Instance != null)
+        {
+            healthBarSlider.maxValue = PlayerHealth.Instance.maxHealth;
+            healthBarSlider.value = PlayerHealth.Instance.currentHealth;
+        }
+    }
+
+    void SetCameraActive(bool firstPersonActive)
+    {
+        if (firstPersonCamera != null)
+            firstPersonCamera.gameObject.SetActive(firstPersonActive);
+
+        if (thirdPersonCamera != null)
+            thirdPersonCamera.gameObject.SetActive(!firstPersonActive);
+    }
+
+    public void ToggleCamera()
+    {
+        isFirstPerson = !isFirstPerson;
+        Debug.Log($"视角切换：{(isFirstPerson ? "第一人称" : "第三人称")}");
+
+        if (headHealthBarInstance != null)
+        {
+            headHealthBarInstance.SetActive(!isFirstPerson);
+        }
+    }
+
+    public void SetFirstPerson()
+    {
+        isFirstPerson = true;
+        SetCameraActive(true);
+        if (headHealthBarInstance != null)
+            headHealthBarInstance.SetActive(false);
+        if (characterModel != null)
+            characterModel.SetActive(false);
+    }
+
+    public void SetThirdPerson()
+    {
+        isFirstPerson = false;
+        SetCameraActive(false);
+        if (headHealthBarInstance != null)
+            headHealthBarInstance.SetActive(true);
+        if (characterModel != null)
+            characterModel.SetActive(true);
+    }
+
+    public void LockCursor(bool locked)
+    {
+        if (locked)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+        else
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+    }
+}
