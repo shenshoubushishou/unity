@@ -1,0 +1,102 @@
+using UnityEngine;
+
+public class Checkpoint : MonoBehaviour
+{
+    public int checkpointID;
+    public ItemData relatedItem;
+    public GameObject visualSign;
+
+    private bool isCompleted = false;
+
+    void Start()
+    {
+        Collider col = GetComponent<Collider>();
+        if (col == null)
+        {
+            col = gameObject.AddComponent<BoxCollider>();
+        }
+        col.isTrigger = true;
+
+        if (relatedItem == null)
+        {
+            Debug.LogWarning("打卡点 " + gameObject.name + " 没有拖入 relatedItem！");
+        }
+    }
+
+    void OnTriggerEnter(Collider other)
+    {
+        if (isCompleted) return;
+        if (other.CompareTag("Player"))
+        {
+            isCompleted = true;
+
+            if (visualSign != null)
+                visualSign.SetActive(false);
+
+            if (relatedItem != null && InventoryManager.Instance != null)
+            {
+                InventoryManager.Instance.AddItem(relatedItem);
+
+                if (UIManager.Instance != null)
+                {
+                    UIManager.Instance.ShowCollectTip(relatedItem.itemName);
+                }
+
+                if (ScoreManager.Instance != null)
+                {
+                    ScoreManager.Instance.AddScore(1);
+                }
+
+                if (TaskManager.Instance != null)
+                {
+                    TaskManager.Instance.UpdateProgress();
+                }
+
+                if (AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayCheckpointSound();
+                }
+
+                Debug.Log("打卡成功！获得：" + relatedItem.itemName);
+            }
+            else
+            {
+                Debug.LogError("打卡失败：relatedItem 为空 或 InventoryManager 不存在！");
+            }
+        }
+    }
+
+    public bool IsCompleted()
+    {
+        return isCompleted;
+    }
+
+    public ItemData GetRelatedItem()
+    {
+        return relatedItem;
+    }
+    // 在 Checkpoint.cs 中添加这个方法
+    public void SetCompleted()
+    {
+        isCompleted = true;
+        if (visualSign != null)
+            visualSign.SetActive(false);
+        Debug.Log($"📌 恢复打卡点 {checkpointID}");
+    }
+    void OnDrawGizmos()
+    {
+        Collider col = GetComponent<Collider>();
+        if (col != null)
+        {
+            Gizmos.color = isCompleted ? Color.green : Color.yellow;
+            if (col is BoxCollider box)
+            {
+                Gizmos.DrawWireCube(transform.position + box.center, box.size);
+            }
+            else if (col is SphereCollider sphere)
+            {
+                Gizmos.DrawWireSphere(transform.position + sphere.center, sphere.radius);
+            }
+        }
+    }
+}
