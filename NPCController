@@ -1,0 +1,162 @@
+using UnityEngine;
+using TMPro;
+
+public class NPCController : MonoBehaviour
+{
+    [Header("NPC 设置")]
+    public string npcName = "任务 NPC";
+
+    [Header("对话内容")]
+    public string dialogBeforeAccept = "你好，旅行者！\n请帮我打卡所有 5 个打卡点。";
+    public string dialogAfterAccept = "快去打卡吧！\n完成所有打卡点后回来找我。";
+    public string dialogNotComplete = "很遗憾，你还没有完成所有打卡点！\n继续加油吧！";
+    public string dialogComplete = "太棒了！\n你完成了所有打卡点！";
+
+    [Header("交互设置")]
+    public float interactionRange = 3f;
+    public KeyCode interactKey = KeyCode.E;
+
+    [Header("UI 引用")]
+    public GameObject interactHint;
+    public GameObject dialogBubble;
+
+    private bool isPlayerNear = false;
+    private Transform player;
+    private bool hasTriggeredOutcome = false;
+
+    void Start()
+    {
+        if (interactHint != null)
+            interactHint.SetActive(false);
+        if (dialogBubble != null)
+            dialogBubble.SetActive(false);
+    }
+
+    void Update()
+    {
+        if (player == null)
+        {
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null)
+                player = playerObj.transform;
+            else
+                Debug.LogError("❌ 找不到 Player！请检查 Tag！");
+        }
+
+        // ===== 用 OnTriggerEnter 检测，不用距离计算 =====
+        // 距离计算只作为备用
+        if (player != null)
+        {
+            float distance = Vector3.Distance(transform.position, player.position);
+            Debug.Log($"📏 距离 NPC：{distance:F2}，范围内：{isPlayerNear}");
+        }
+
+        if (interactHint != null)
+            interactHint.SetActive(isPlayerNear);
+
+        if (isPlayerNear && Input.GetKeyDown(interactKey))
+        {
+            Debug.Log("✅ E 键被按下！执行交互");
+            Interact();
+        }
+    }
+
+    // ===== 玩家进入触发器 =====
+    void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            isPlayerNear = true;
+            Debug.Log("✅ 玩家进入 NPC 范围！");
+        }
+    }
+
+    // ===== 玩家离开触发器 =====
+    void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            isPlayerNear = false;
+            Debug.Log("❌ 玩家离开 NPC 范围！");
+        }
+    }
+
+    void Interact()
+    {
+        Debug.Log("Interact() 被调用！");
+
+        if (TaskManager.Instance == null)
+        {
+            Debug.LogError("TaskManager 未找到！");
+            return;
+        }
+
+        if (GameManager.Instance == null)
+        {
+            Debug.LogError("GameManager 未找到！");
+            return;
+        }
+
+        if (hasTriggeredOutcome) return;
+
+        if (TaskManager.Instance.IsTaskCompleted())
+        {
+            ShowDialogBubble(dialogComplete);
+            TaskManager.Instance.ShowDialog("任务已完成！谢谢你！");
+            hasTriggeredOutcome = true;
+            GameManager.Instance.Victory();
+            return;
+        }
+
+        if (TaskManager.Instance.IsTaskAccepted())
+        {
+            int progress = TaskManager.Instance.currentProgress;
+            int required = TaskManager.Instance.currentTask.requiredCount;
+
+            if (progress >= required)
+            {
+                ShowDialogBubble(dialogComplete);
+                TaskManager.Instance.ShowDialog("任务已完成！谢谢你！");
+                hasTriggeredOutcome = true;
+                GameManager.Instance.Victory();
+            }
+            else
+            {
+                ShowDialogBubble(dialogNotComplete);
+                TaskManager.Instance.ShowDialog($"很遗憾！\n进度：{progress} / {required}\n还没有完成所有打卡点！");
+                hasTriggeredOutcome = true;
+                GameManager.Instance.GameOver();
+            }
+            return;
+        }
+
+        ShowDialogBubble(dialogBeforeAccept);
+        TaskManager.Instance.AcceptTask();
+    }
+
+    void ShowDialogBubble(string text)
+    {
+        if (dialogBubble == null) return;
+
+        TMP_Text textComponent = dialogBubble.GetComponentInChildren<TMP_Text>();
+        if (textComponent != null)
+        {
+            textComponent.text = text;
+        }
+
+        dialogBubble.SetActive(true);
+        Invoke("HideDialogBubble", 3f);
+    }
+
+    void HideDialogBubble()
+    {
+        if (dialogBubble != null)
+            dialogBubble.SetActive(false);
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireSphere(transform.position, interactionRange);
+    }
+}
