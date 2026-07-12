@@ -1,0 +1,131 @@
+using UnityEngine;
+
+// ===== 枚举定义 =====
+public enum DayNightState
+{
+    Day,
+    Night,
+    Dawn,
+    Dusk
+}
+
+// ===== 主类 =====
+public class DayNightController : MonoBehaviour
+{
+    public static DayNightController Instance;
+
+    [Header("天空盒")]
+    public Material dawnSkybox;
+    public Material daySkybox;
+    public Material duskSkybox;
+    public Material nightSkybox;
+
+    [Header("光照")]
+    public Light sunLight;
+    public float dawnIntensity = 0.5f;
+    public float dayIntensity = 1.2f;
+    public float duskIntensity = 0.4f;
+    public float nightIntensity = 0.1f;
+
+    public Color dawnColor = new Color(0.8f, 0.5f, 0.3f);
+    public Color dayColor = Color.white;
+    public Color duskColor = new Color(0.9f, 0.4f, 0.2f);
+    public Color nightColor = new Color(0.1f, 0.1f, 0.3f);
+
+    [Header("当前时间")]
+    [Range(0f, 24f)]
+    public float currentTime = 12f;
+
+    [Header("时间速度")]
+    public float timeSpeed = 0f;
+
+    private void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        ApplyTime(currentTime);
+    }
+
+    void Update()
+    {
+        if (timeSpeed > 0f)
+        {
+            currentTime += Time.deltaTime * timeSpeed / 3600f;
+            if (currentTime > 24f) currentTime -= 24f;
+            ApplyTime(currentTime);
+        }
+    }
+
+    public void SetTime(float time)
+    {
+        currentTime = Mathf.Clamp(time, 0f, 24f);
+        ApplyTime(currentTime);
+        Debug.Log($"⏰ 时间设置为：{currentTime:F1}:00");
+    }
+
+    void ApplyTime(float time)
+    {
+        DayNightState state = GetTimeState(time);
+        ApplyState(state);
+    }
+
+    DayNightState GetTimeState(float time)
+    {
+        if (time >= 5f && time < 8f) return DayNightState.Dawn;
+        if (time >= 8f && time < 17f) return DayNightState.Day;
+        if (time >= 17f && time < 20f) return DayNightState.Dusk;
+        return DayNightState.Night;
+    }
+
+    void ApplyState(DayNightState state)
+    {
+        switch (state)
+        {
+            case DayNightState.Dawn:
+                ApplySkybox(dawnSkybox, dawnColor, dawnIntensity);
+                break;
+            case DayNightState.Day:
+                ApplySkybox(daySkybox, dayColor, dayIntensity);
+                break;
+            case DayNightState.Dusk:
+                ApplySkybox(duskSkybox, duskColor, duskIntensity);
+                break;
+            case DayNightState.Night:
+                ApplySkybox(nightSkybox, nightColor, nightIntensity);
+                break;
+        }
+    }
+
+    void ApplySkybox(Material skybox, Color color, float intensity)
+    {
+        if (skybox != null)
+        {
+            RenderSettings.skybox = skybox;
+            skybox.SetFloat("_Exposure", 1f);
+        }
+
+        if (sunLight != null)
+        {
+            sunLight.color = color;
+            sunLight.intensity = intensity;
+        }
+    }
+
+    public string GetTimeText()
+    {
+        int hours = Mathf.FloorToInt(currentTime);
+        int minutes = Mathf.FloorToInt((currentTime - hours) * 60);
+        return $"{hours:D2}:{minutes:D2}";
+    }
+
+    public string GetTimeStateName()
+    {
+        return GetTimeState(currentTime).ToString();
+    }
+}
