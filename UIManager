@@ -1,0 +1,112 @@
+using UnityEngine;
+using TMPro;
+using System.Collections;
+
+public class UIManager : MonoBehaviour
+{
+    public static UIManager Instance;
+
+    [Header("提示 UI")]
+    public TMP_Text collectTipText;        // 收集提示文字
+    public float tipDisplayDuration = 2f;  // 显示时长
+
+    private Coroutine tipCoroutine;
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        // 默认隐藏提示
+        if (collectTipText != null)
+            collectTipText.gameObject.SetActive(false);
+    }
+
+    // ===== 显示收集提示 =====
+    public void ShowCollectTip(string itemName)
+    {
+        if (collectTipText == null)
+        {
+            Debug.LogWarning("⚠️ collectTipText 未设置！");
+            return;
+        }
+
+        // 停止之前的协程
+        if (tipCoroutine != null)
+            StopCoroutine(tipCoroutine);
+
+        // 更新文字
+        collectTipText.text = $"Get:{itemName}!";
+
+        // 显示
+        collectTipText.gameObject.SetActive(true);
+
+        // 开始自动隐藏
+        tipCoroutine = StartCoroutine(HideTipAfterDelay());
+    }
+
+    // ===== 自动隐藏 =====
+    IEnumerator HideTipAfterDelay()
+    {
+        yield return new WaitForSeconds(tipDisplayDuration);
+
+        if (collectTipText != null)
+            collectTipText.gameObject.SetActive(false);
+
+        tipCoroutine = null;
+    }
+
+    // ===== 手动隐藏 =====
+    public void HideTip()
+    {
+        if (tipCoroutine != null)
+        {
+            StopCoroutine(tipCoroutine);
+            tipCoroutine = null;
+        }
+
+        if (collectTipText != null)
+            collectTipText.gameObject.SetActive(false);
+    }
+
+    // 在 UIManager.cs 中添加
+    IEnumerator ShowTipWithFade(string itemName)
+    {
+        if (collectTipText == null) yield break;
+
+        collectTipText.text = $"🎉 已成功收集：{itemName}";
+        collectTipText.gameObject.SetActive(true);
+
+        // 淡入
+        Color color = collectTipText.color;
+        float elapsed = 0f;
+        while (elapsed < 0.3f)
+        {
+            elapsed += Time.deltaTime;
+            float alpha = Mathf.Lerp(0f, 1f, elapsed / 0.3f);
+            collectTipText.color = new Color(color.r, color.g, color.b, alpha);
+            yield return null;
+        }
+        collectTipText.color = new Color(color.r, color.g, color.b, 1f);
+
+        // 等待
+        yield return new WaitForSeconds(tipDisplayDuration);
+
+        // 淡出
+        elapsed = 0f;
+        while (elapsed < 0.3f)
+        {
+            elapsed += Time.deltaTime;
+            float alpha = Mathf.Lerp(1f, 0f, elapsed / 0.3f);
+            collectTipText.color = new Color(color.r, color.g, color.b, alpha);
+            yield return null;
+        }
+
+        collectTipText.gameObject.SetActive(false);
+    }
+}
