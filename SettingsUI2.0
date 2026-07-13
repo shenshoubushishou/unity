@@ -1,0 +1,299 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+public class SettingsUI : MonoBehaviour
+{
+    [Header("UI 引用")]
+    public GameObject settingsPanel;
+    public Button sunnyButton;
+    public Button rainyButton;
+    public Button snowyButton;
+    public Button closeButton;
+    public Slider volumeSlider;
+    public TMP_Text volumeText;
+
+    // ===== 时间控制 =====
+    public Slider timeSlider;
+    public TMP_Text timeText;
+    public TMP_Text timeStateText;
+
+    // ===== 视频控制 =====
+    public Button playVideoButton;
+    public Button stopVideoButton;
+    public TMP_Text videoStatusText;
+
+    void Start()
+    {
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
+
+        if (sunnyButton != null)
+            sunnyButton.onClick.AddListener(OnSunnyClicked);
+
+        if (rainyButton != null)
+            rainyButton.onClick.AddListener(OnRainyClicked);
+
+        if (snowyButton != null)
+            snowyButton.onClick.AddListener(OnSnowyClicked);
+
+        if (closeButton != null)
+            closeButton.onClick.AddListener(CloseSettings);
+
+        // ===== 音量 =====
+        if (volumeSlider != null)
+        {
+            volumeSlider.minValue = 0f;
+            volumeSlider.maxValue = 1f;
+            volumeSlider.onValueChanged.AddListener(OnVolumeChanged);
+
+            float initVolume = 0.5f;
+            if (AudioManager.Instance != null)
+                initVolume = AudioManager.Instance.GetMasterVolume();
+
+            volumeSlider.value = initVolume;
+            UpdateVolumeText(initVolume);
+        }
+
+        // ===== 时间 =====
+        if (timeSlider != null)
+        {
+            timeSlider.minValue = 0f;
+            timeSlider.maxValue = 24f;
+            timeSlider.value = 12f;
+            timeSlider.onValueChanged.AddListener(OnTimeChanged);
+
+            if (DayNightController.Instance != null)
+                timeSlider.value = DayNightController.Instance.currentTime;
+
+            UpdateTimeText(timeSlider.value);
+        }
+
+        // ===== 视频 =====
+        if (playVideoButton != null)
+            playVideoButton.onClick.AddListener(OnPlayVideo);
+
+        if (stopVideoButton != null)
+            stopVideoButton.onClick.AddListener(OnStopVideo);
+
+        UpdateVideoStatus();
+
+        Debug.Log("设置界面已初始化");
+    }
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.O))
+            ToggleSettings();
+
+        if (timeSlider != null && DayNightController.Instance != null)
+        {
+            float currentTime = DayNightController.Instance.currentTime;
+            if (Mathf.Abs(timeSlider.value - currentTime) > 0.01f)
+            {
+                timeSlider.value = currentTime;
+                UpdateTimeText(currentTime);
+            }
+        }
+
+        UpdateVideoStatus();
+    }
+
+    public void ToggleSettings()
+    {
+        if (settingsPanel == null) return;
+
+        bool isOpen = settingsPanel.activeSelf;
+        settingsPanel.SetActive(!isOpen);
+
+        if (!isOpen)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        else
+        {
+            GameObject inventoryPanel = GameObject.Find("InventoryPanel");
+            if (inventoryPanel != null && !inventoryPanel.activeSelf)
+            {
+                GameObject mainMenu = GameObject.Find("MainMenuCanvas");
+                if (mainMenu == null || !mainMenu.activeSelf)
+                {
+                    Cursor.lockState = CursorLockMode.Locked;
+                    Cursor.visible = false;
+                }
+                else
+                {
+                    Cursor.lockState = CursorLockMode.None;
+                    Cursor.visible = true;
+                }
+            }
+            else
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+        }
+    }
+
+    public void CloseSettings()
+    {
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
+
+        GameObject inventoryPanel = GameObject.Find("InventoryPanel");
+        if (inventoryPanel != null && !inventoryPanel.activeSelf)
+        {
+            GameObject mainMenu = GameObject.Find("MainMenuCanvas");
+            if (mainMenu == null || !mainMenu.activeSelf)
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
+            else
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+        }
+        else
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+    }
+
+    // ===== 音量 =====
+    void OnVolumeChanged(float value)
+    {
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.SetMasterVolume(value);
+
+        if (BackgroundMusicController.Instance != null)
+            BackgroundMusicController.Instance.SetVolume(value);
+
+        UpdateVolumeText(value);
+    }
+
+    void UpdateVolumeText(float value)
+    {
+        if (volumeText != null)
+        {
+            int percent = Mathf.RoundToInt(value * 100);
+            volumeText.text = $"{percent}%";
+        }
+    }
+
+    // ===== 时间 =====
+    void OnTimeChanged(float value)
+    {
+        if (DayNightController.Instance != null)
+            DayNightController.Instance.SetTime(value);
+        UpdateTimeText(value);
+    }
+
+    void UpdateTimeText(float time)
+    {
+        if (timeText == null) return;
+
+        int hours = Mathf.FloorToInt(time);
+        int minutes = Mathf.FloorToInt((time - hours) * 60);
+        timeText.text = $"{hours:D2}:{minutes:D2}";
+
+        if (timeStateText != null)
+        {
+            string state = GetTimeState(time);
+            timeStateText.text = state;
+            timeStateText.color = GetStateColor(state);
+        }
+    }
+
+    string GetTimeState(float time)
+    {
+        if (time >= 5f && time < 8f) return "🌅 黎明";
+        if (time >= 8f && time < 17f) return "☀️ 白天";
+        if (time >= 17f && time < 20f) return "🌇 黄昏";
+        return "🌙 夜晚";
+    }
+
+    Color GetStateColor(string state)
+    {
+        if (state.Contains("黎明")) return new Color(1f, 0.6f, 0.2f);
+        if (state.Contains("白天")) return new Color(1f, 1f, 0.5f);
+        if (state.Contains("黄昏")) return new Color(1f, 0.4f, 0.1f);
+        return new Color(0.3f, 0.3f, 0.6f);
+    }
+
+    // ===== 视频 =====
+    void OnPlayVideo()
+    {
+        if (VideoController.Instance != null)
+        {
+            VideoController.Instance.PlayVideo();
+            Debug.Log("▶️ 播放大屏视频");
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ VideoController 未找到！");
+        }
+    }
+
+    void OnStopVideo()
+    {
+        if (VideoController.Instance != null)
+        {
+            VideoController.Instance.StopVideo();
+            Debug.Log("⏹️ 停止大屏视频");
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ VideoController 未找到！");
+        }
+    }
+
+    void UpdateVideoStatus()
+    {
+        if (videoStatusText == null) return;
+
+        if (VideoController.Instance != null)
+        {
+            if (VideoController.Instance.IsPlaying())
+            {
+                videoStatusText.text = "播放中";
+                videoStatusText.color = Color.green;
+            }
+            else
+            {
+                videoStatusText.text = "已暂停";
+                videoStatusText.color = Color.gray;
+            }
+        }
+        else
+        {
+            videoStatusText.text = "未找到视频";
+            videoStatusText.color = Color.red;
+        }
+    }
+
+    // ===== 天气 =====
+    public void OnSunnyClicked()
+    {
+        Debug.Log("切换到晴天");
+        if (WeatherSystem.Instance != null)
+            WeatherSystem.Instance.SetWeather(WeatherState.Sunny);
+    }
+
+    public void OnRainyClicked()
+    {
+        Debug.Log("切换到下雨");
+        if (WeatherSystem.Instance != null)
+            WeatherSystem.Instance.SetWeather(WeatherState.Rainy);
+    }
+
+    public void OnSnowyClicked()
+    {
+        Debug.Log("切换到下雪");
+        if (WeatherSystem.Instance != null)
+            WeatherSystem.Instance.SetWeather(WeatherState.Snowy);
+    }
+}
