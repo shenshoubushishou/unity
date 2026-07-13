@@ -1,0 +1,370 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+using System.Collections.Generic;
+using UnityEngine.SceneManagement;
+
+public class TeleportManager : MonoBehaviour
+{
+    public static TeleportManager Instance;
+
+    [Header("UI 引用")]
+    public GameObject teleportButton;
+    public GameObject teleportMenu;
+    public Transform contentContainer;
+    public GameObject teleportItemPrefab;
+
+    [Header("传送设置")]
+    public float teleportHeight = 10f;
+
+    [Header("传送目标列表")]
+    public List<TeleportTarget> teleportTargets = new List<TeleportTarget>();
+
+    private bool isMenuOpen = false;
+    private Transform player;
+
+    [System.Serializable]
+    public class TeleportTarget
+    {
+        public string targetName;
+        public Transform targetTransform;
+        public TargetType targetType;
+        public float heightOffset = 2f;
+    }
+
+    public enum TargetType
+    {
+        Checkpoint,
+        NPC,
+        Portal,
+        ViewPoint
+    }
+
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+            return;
+        }
+    }
+
+    void Start()
+    {
+        Invoke("InitTeleport", 0.1f);
+    }
+
+    void OnEnable()
+    {
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    void OnDisable()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        Debug.Log($"📂 场景加载：{scene.name}");
+        Invoke("InitTeleport", 0.2f);
+    }
+
+    void InitTeleport()
+    {
+        Debug.Log("🔧 初始化传送功能");
+
+        GameObject uiCanvas = GameObject.Find("UICanvas");
+        if (uiCanvas == null)
+        {
+            Debug.LogError("❌ 找不到 UICanvas！");
+            return;
+        }
+
+        // 查找 TeleportButton
+        Transform btnTrans = uiCanvas.transform.Find("TeleportButton");
+        if (btnTrans != null)
+        {
+            teleportButton = btnTrans.gameObject;
+            Button btn = teleportButton.GetComponent<Button>();
+            if (btn != null)
+            {
+                btn.onClick.RemoveAllListeners();
+                btn.onClick.AddListener(ToggleMenu);
+                Debug.Log("✅ TeleportButton 已绑定");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ 找不到 TeleportButton");
+        }
+
+        // 查找 TeleportMenu
+        Transform menuTrans = uiCanvas.transform.Find("TeleportMenu");
+        if (menuTrans != null)
+        {
+            teleportMenu = menuTrans.gameObject;
+            contentContainer = teleportMenu.transform.Find("ContentContainer");
+            Debug.Log("✅ TeleportMenu 已找到");
+        }
+        else
+        {
+            Debug.LogError("❌ 找不到 TeleportMenu！");
+            return;
+        }
+
+        if (teleportMenu != null)
+            teleportMenu.SetActive(false);
+
+        AutoCollectTargets();
+        GenerateTeleportItems();
+
+        Debug.Log("📍 传送功能初始化完成");
+    }
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.T))
+        {
+            Debug.Log("⌨️ T 键被按下");
+            ToggleMenu();
+        }
+
+        if (isMenuOpen && Input.GetKeyDown(KeyCode.Escape))
+        {
+            CloseMenu();
+        }
+    }
+
+    void AutoCollectTargets()
+    {
+        teleportTargets.Clear();
+        Debug.Log("🔍 收集传送目标...");
+
+        // 打卡点
+        Checkpoint[] checkpoints = FindObjectsByType<Checkpoint>(FindObjectsSortMode.None);
+        foreach (var cp in checkpoints)
+        {
+            if (cp != null)
+            {
+                TeleportTarget target = new TeleportTarget();
+                target.targetName = cp.gameObject.name;
+                target.targetTransform = cp.transform;
+                target.targetType = TargetType.Checkpoint;
+                target.heightOffset = teleportHeight;
+                teleportTargets.Add(target);
+                Debug.Log($"   ✅ 添加打卡点：{cp.gameObject.name}");
+            }
+        }
+
+        // NPC
+        NPCController[] npcs = FindObjectsByType<NPCController>(FindObjectsSortMode.None);
+        foreach (var npc in npcs)
+        {
+            if (npc != null)
+            {
+                TeleportTarget target = new TeleportTarget();
+                target.targetName = npc.npcName;
+                target.targetTransform = npc.transform;
+                target.targetType = TargetType.NPC;
+                target.heightOffset = 1f;
+                teleportTargets.Add(target);
+                Debug.Log($"   ✅ 添加 NPC：{npc.npcName}");
+            }
+        }
+
+        // 传送门
+        Portal[] portals = FindObjectsByType<Portal>(FindObjectsSortMode.None);
+        foreach (var portal in portals)
+        {
+            if (portal != null)
+            {
+                TeleportTarget target = new TeleportTarget();
+                target.targetName = $"传送门 {portal.portalID}";
+                target.targetTransform = portal.transform;
+                target.targetType = TargetType.Portal;
+                target.heightOffset = 1f;
+                teleportTargets.Add(target);
+                Debug.Log($"   ✅ 添加传送门：{portal.portalID}");
+            }
+        }
+
+        // 视频观景点
+        GameObject viewPoint = GameObject.Find("VideoViewPoint");
+        if (viewPoint != null)
+        {
+            TeleportTarget target = new TeleportTarget();
+            target.targetName = "🎬 视频观景点";
+            target.targetTransform = viewPoint.transform;
+            target.targetType = TargetType.ViewPoint;
+            target.heightOffset = 1f;
+            teleportTargets.Add(target);
+            Debug.Log("   ✅ 添加视频观景点");
+        }
+
+        Debug.Log($"📍 总共收集到 {teleportTargets.Count} 个目标");
+    }
+
+    void GenerateTeleportItems()
+    {
+        Debug.Log("🔧 生成传送按钮...");
+
+        if (contentContainer == null)
+        {
+            Debug.LogError("❌ contentContainer 为空");
+            return;
+        }
+
+        if (teleportItemPrefab == null)
+        {
+            Debug.LogError("❌ teleportItemPrefab 为空");
+            return;
+        }
+
+        // 清除旧项目
+        foreach (Transform child in contentContainer)
+        {
+            Destroy(child.gameObject);
+        }
+
+        if (teleportTargets.Count == 0)
+        {
+            Debug.LogWarning("⚠️ 没有传送目标");
+            return;
+        }
+
+        foreach (var target in teleportTargets)
+        {
+            if (target.targetTransform == null) continue;
+
+            GameObject item = Instantiate(teleportItemPrefab, contentContainer);
+
+            TMP_Text text = item.GetComponentInChildren<TMP_Text>();
+            if (text != null)
+            {
+                string prefix = GetTargetPrefix(target.targetType);
+
+                bool isCompleted = false;
+                if (target.targetType == TargetType.Checkpoint)
+                {
+                    Checkpoint cp = target.targetTransform.GetComponent<Checkpoint>();
+                    if (cp != null) isCompleted = cp.IsCompleted();
+                }
+
+                text.text = $"{prefix} {target.targetName}";
+                text.fontSize = 14;
+
+                if (target.targetType == TargetType.ViewPoint)
+                {
+                    text.color = Color.cyan;
+                }
+                else
+                {
+                    text.color = isCompleted ? Color.green : Color.black;
+                }
+            }
+
+            Button btn = item.GetComponent<Button>();
+            if (btn != null)
+            {
+                int index = teleportTargets.IndexOf(target);
+                btn.onClick.RemoveAllListeners();
+                btn.onClick.AddListener(() =>
+                {
+                    Debug.Log($"🖱️ 点击传送：{target.targetName}");
+                    TeleportToTarget(index);
+                });
+            }
+        }
+
+        Debug.Log($"📍 生成 {teleportTargets.Count} 个传送按钮");
+    }
+
+    string GetTargetPrefix(TargetType type)
+    {
+        switch (type)
+        {
+            case TargetType.Checkpoint: return "[点]";
+            case TargetType.NPC: return "[NPC]";
+            case TargetType.Portal: return "[门]";
+            case TargetType.ViewPoint: return "[🎬]";
+            default: return "[点]";
+        }
+    }
+
+    void TeleportToTarget(int index)
+    {
+        if (index >= teleportTargets.Count) return;
+
+        TeleportTarget target = teleportTargets[index];
+        if (target.targetTransform == null) return;
+
+        if (player == null)
+        {
+            GameObject p = GameObject.FindGameObjectWithTag("Player");
+            if (p != null) player = p.transform;
+            else
+            {
+                Debug.LogWarning("⚠️ 找不到玩家！");
+                return;
+            }
+        }
+
+        Vector3 targetPos = target.targetTransform.position + new Vector3(0, target.heightOffset, 0);
+        player.position = targetPos;
+        Debug.Log($"🚀 传送到：{target.targetName}");
+
+        CloseMenu();
+    }
+
+    public void ToggleMenu()
+    {
+        Debug.Log("📍 ToggleMenu 被调用");
+
+        if (teleportMenu == null)
+        {
+            Debug.LogError("❌ teleportMenu 为空");
+            return;
+        }
+
+        isMenuOpen = !isMenuOpen;
+        teleportMenu.SetActive(isMenuOpen);
+        Debug.Log($"📂 菜单状态：{(isMenuOpen ? "打开" : "关闭")}");
+
+        if (isMenuOpen)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            RefreshItems();
+        }
+        else
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+    }
+
+    public void CloseMenu()
+    {
+        isMenuOpen = false;
+        if (teleportMenu != null) teleportMenu.SetActive(false);
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+
+    void RefreshItems()
+    {
+        AutoCollectTargets();
+        GenerateTeleportItems();
+    }
+
+    public void OnCheckpointCompleted(int checkpointID)
+    {
+        RefreshItems();
+    }
+}
